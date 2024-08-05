@@ -17,15 +17,18 @@
  */
 
 package spendreport;
-
+import com.mongodb.client.model.InsertOneModel;
+import common.ObjectMapperSingleton;
 import entity.LogChangeGold;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.connector.mongodb.sink.MongoSink;
 import org.apache.flink.connector.mongodb.source.MongoSource;
 import org.apache.flink.connector.mongodb.source.enumerator.splitter.PartitionStrategy;
 import org.apache.flink.connector.mongodb.source.reader.deserializer.MongoDeserializationSchema;
@@ -34,6 +37,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.walkthrough.common.sink.AlertSink;
 import org.apache.flink.walkthrough.common.entity.Alert;
@@ -41,6 +45,7 @@ import org.apache.flink.walkthrough.common.entity.Transaction;
 import org.bson.BsonDocument;
 import org.slf4j.Logger;
 import ourMapFuntion.BsonToEntityMapper;
+import ourReduceFuntion.LogChangeGoldReduceFuntion;
 
 /**
  * Skeleton code for the datastream walkthrough
@@ -62,7 +67,6 @@ public class FraudDetectionJob {
 					@Override
 					public String deserialize(BsonDocument document) {
 						String json = document.toJson();
-						log.info("deserialize{}",json);
 						return json;
 					}
 
@@ -78,9 +82,27 @@ public class FraudDetectionJob {
 		BsonToEntityMapper<LogChangeGold> mapper = new BsonToEntityMapper(LogChangeGold.class);
 
 		DataStream<String> logs = env.fromSource(source, WatermarkStrategy.noWatermarks(), "MongoDB-Source");
-		DataStream<Alert> alertDataStream= logs.map(mapper).keyBy(LogChangeGold::getPlayerId).process(new ChangeGoldStatistics()).name("ChangeGoldStatistics");
-        alertDataStream.addSink(new AlertSink())
-				.name("send-alerts");
+//		logs.map(mapper).filter(logChangeGold -> {return (logChangeGold.getPlayerId()==300016210&&logChangeGold.getExtType2()==11089);}).keyBy(LogChangeGold::getKey).reduce(new LogChangeGoldReduceFuntion()).print();
+		DataStream<String> logChangeGoldDataStream= logs.map(mapper).filter(logChangeGold -> {return (logChangeGold.getPlayerId()==300016210&&logChangeGold.getExtType2()==11089);})
+				.keyBy(LogChangeGold::getPlayerId).reduce(new LogChangeGoldReduceFuntion())
+				.map(new MapFunction<LogChangeGold, String>() {
+			@Override
+			public String map(LogChangeGold logChangeGold) throws Exception {
+				ObjectMapper objectMapper = ObjectMapperSingleton.getInstance();
+				return objectMapper.writeValueAsString(logChangeGold);
+			}
+		});
+		MongoSink<String> sink = MongoSink.<String>builder()
+				.setUri("mongodb://127.0.0.1:27017")
+				.setDatabase("flink")
+				.setCollection("logSpeed")
+				.setBatchSize(1000)
+				.setBatchIntervalMs(1000)
+				.setMaxRetries(3)
+				.setSerializationSchema(
+						(input, context) -> new InsertOneModel<>(BsonDocument.parse(input)))
+				.build();
+		logChangeGoldDataStream.sinkTo(sink);
 		env.execute("Fraud Detection");
 	}
 }

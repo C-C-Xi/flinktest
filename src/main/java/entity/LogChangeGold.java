@@ -5,6 +5,7 @@ import entity.common.BsonId;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.bson.BsonDocument;
 
@@ -117,4 +118,20 @@ public class LogChangeGold  extends BaseEntity{
     @JsonProperty("activityId")
     private int activityId;
 
+    @JsonProperty("recordCount")
+    private int recordCount;
+
+    public String getKey() {
+        StringBuffer stringBuffer=new StringBuffer();
+        stringBuffer.append(this.playerId);
+        stringBuffer.append("_");
+        stringBuffer.append(this.extType1);
+        stringBuffer.append("_");
+        stringBuffer.append(this.extType2);
+        stringBuffer.append("_");
+        stringBuffer.append(this.extType3);
+        stringBuffer.append("_");
+        stringBuffer.append(this.extType4);
+        return stringBuffer.toString();
+    }
 }

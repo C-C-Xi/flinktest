@@ -9,7 +9,7 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.walkthrough.common.entity.Alert;
 
 @Data
-public class ChangeGoldStatistics extends KeyedProcessFunction<Long, LogChangeGold, Alert> {
+public class ChangeGoldStatistics extends KeyedProcessFunction<String, LogChangeGold, Alert> {
     private static final long serialVersionUID = 1L;
 
     private static final double SMALL_AMOUNT = 1.00;
@@ -17,7 +17,7 @@ public class ChangeGoldStatistics extends KeyedProcessFunction<Long, LogChangeGo
     private static final long ONE_MINUTE = 60 * 1000;
 
     @Override
-    public void processElement(LogChangeGold logChangeGold, KeyedProcessFunction<Long, LogChangeGold, Alert>.Context context, Collector<Alert> collector) throws Exception {
+    public void processElement(LogChangeGold logChangeGold, KeyedProcessFunction<String, LogChangeGold, Alert>.Context context, Collector<Alert> collector) throws Exception {
         Alert alert = new Alert();
         if(logChangeGold.getAppType()==155277){
             alert.setId(logChangeGold.getPlayerId());
