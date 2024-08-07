@@ -1,6 +1,7 @@
 package entity;
 
 
+import common.LocalDateTimeConverter;
 import entity.common.BsonId;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,7 +10,14 @@ import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonIgn
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 import org.bson.BsonDocument;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
+import java.util.Objects;
+
 @Data
 @NoArgsConstructor
 @ToString
@@ -121,6 +129,27 @@ public class LogChangeGold  extends BaseEntity{
     @JsonProperty("recordCount")
     private int recordCount;
 
+    @JsonProperty("dateTime")
+    private int dateTime;
+
+    @JsonProperty("dayStartTime")
+    private long dayStartTime;
+
+    @JsonProperty("roomType")
+    private int roomType;
+
+    public void setTime(long time) {
+        Instant instant = Instant.ofEpochSecond(time/1000);
+
+        // 将Instant对象转为LocalDateTime对象
+        LocalDateTime dateTime = LocalDateTime.ofInstant(instant, ZoneId.of("-3"));
+        // 创建日期时间格式化对象
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        this.dayStartTime=dateTime.withHour(0).withMinute(0).withSecond(0).withNano(0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        this.dateTime=Integer.parseInt(dateTime.format(formatter));
+        this.time = time;
+    }
+
     public String getKey() {
         StringBuffer stringBuffer=new StringBuffer();
         stringBuffer.append(this.playerId);
@@ -134,4 +163,5 @@ public class LogChangeGold  extends BaseEntity{
         stringBuffer.append(this.extType4);
         return stringBuffer.toString();
     }
+
 }
