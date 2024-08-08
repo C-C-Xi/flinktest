@@ -145,10 +145,20 @@ public class LogChangeGold  extends BaseEntity{
         LocalDateTime dateTime = LocalDateTime.ofInstant(instant, ZoneId.of("-3"));
         // 创建日期时间格式化对象
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        this.dayStartTime=dateTime.withHour(0).withMinute(0).withSecond(0).withNano(0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        this.dayStartTime=dateTime.withHour(0).withMinute(0).withSecond(0).withNano(0).toInstant(ZoneOffset.of("-3")).toEpochMilli();
         this.dateTime=Integer.parseInt(dateTime.format(formatter));
         this.time = time;
     }
+
+
+    public int getNewUser() {
+        int newUser=0;
+        if(this.registerTime>=this.dayStartTime&&this.registerTime<this.dayStartTime+86400000){
+           newUser=1;
+        }
+        return newUser;
+    }
+
 
     public String getKey() {
         StringBuffer stringBuffer=new StringBuffer();
