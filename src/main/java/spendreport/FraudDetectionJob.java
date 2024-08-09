@@ -27,6 +27,8 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.cdc.connectors.mongodb.source.MongoDBSource;
+import org.apache.flink.cdc.debezium.JsonDebeziumDeserializationSchema;
 import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.connector.mongodb.source.MongoSource;
 import org.apache.flink.connector.mongodb.source.enumerator.splitter.PartitionStrategy;
@@ -48,38 +50,23 @@ public class FraudDetectionJob {
 
     public static void main(String[] args) throws Exception {
         ObjectMapper objectMapper = ObjectMapperSingleton.getInstance();
-//		BroadcastStream<String> broadcastStream = logChangeGoldDataStream.broadcast();
-        MongoSource<String> source = MongoSource.<String>builder()
-                .setUri("mongodb://127.0.0.1:27017")
-                .setDatabase("TOLog")
-                .setCollection("LOG_ChangesGold")
-                .setFetchSize(2048)
-                .setLimit(10000)
-                .setNoCursorTimeout(true)
-                .setPartitionStrategy(PartitionStrategy.SAMPLE)
-                .setPartitionSize(MemorySize.ofMebiBytes(64))
-                .setSamplesPerPartition(10)
-                .setDeserializationSchema(new MongoDeserializationSchema<String>() {
-                    @Override
-                    public String deserialize(BsonDocument document) {
-                        return document.toJson();
-                    }
-
-                    @Override
-                    public TypeInformation<String> getProducedType() {
-                        return BasicTypeInfo.STRING_TYPE_INFO;
-                    }
-                })
+        MongoDBSource <String>source= MongoDBSource.<String>builder()
+                .hosts("localhost:27017")
+                .databaseList("TOLog") // 设置捕获的数据库，支持正则表达式
+                .collectionList("TOLog.LOG_ChangesGold") //设置捕获的集合，支持正则表达式
+                .deserializer(new JsonDebeziumDeserializationSchema())
                 .build();
+//		BroadcastStream<String> broadcastStream = logChangeGoldDataStream.broadcast();
 
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().enableCheckpointing(3000);
+
         BsonToEntityMapper<LogChangeGold> mapper = new BsonToEntityMapper<>(LogChangeGold.class);
 
-        DataStream<String> logs = env.fromSource(source, WatermarkStrategy.noWatermarks(), "MongoDB-Source");
+        DataStream<String> logs = env.fromSource(source, WatermarkStrategy.forMonotonousTimestamps(), "MongoDB-Source").setParallelism(2);
 //		logs.map(mapper).filter(logChangeGold -> {return (logChangeGold.getPlayerId()==300016210&&logChangeGold.getExtType2()==11089);}).keyBy(LogChangeGold::getKey).reduce(new LogChangeGoldReduceFuntion()).print();
         //获取游戏数据流
-        DataStream<LogChangeGold> logChangeGoldDataStream = logs.map(mapper);
+        DataStream<LogChangeGold> logChangeGoldDataStream = logs.map(mapper).setParallelism(2);
         // 统计玩家日数据
         DataStream<String> playerDayDataStream = logChangeGoldDataStream.map((MapFunction<LogChangeGold, String>) logChangeGold -> {
             Map<String, Object> condition = new HashMap<>();
